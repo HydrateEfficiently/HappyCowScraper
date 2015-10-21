@@ -1,0 +1,11 @@
+{
+  "name": "HappyCowScraper",
+  "version": "0.0.1",
+  "devDependencies": {
+    "scraperjs": "1.0.0",
+    "async": "1.4.2",
+    "lodash": "3.10.0"
+  },
+  "scripts": {
+  }
+}
