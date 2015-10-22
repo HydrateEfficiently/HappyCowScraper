@@ -2,12 +2,28 @@
 
 	var when = require("when");
 
-	function promiseWhile(condition, worker, iteration) {
+	/* Example of promiseWhile usage:
+		promiseWhile(
+			function () {
+				return count < 10;
+			},
+			function (resolve) {
+				setTimeout(resolve, 1000);
+			},
+			function (result) {
+				count++; console.log(count);
+			})
+		.then(function () {
+			console.log("Completed!");
+		});
+	*/
+
+	function promiseWhile(condition, worker, iteration, result) {
 		var deferred = when.defer();
 
 		function loop() {
 			if (!condition()) {
-				deferred.resolve();
+				deferred.resolve(result());
 			} else {
 				when.promise(worker).then(iteration).then(loop);
 			}

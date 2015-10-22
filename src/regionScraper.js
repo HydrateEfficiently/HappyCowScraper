@@ -3,7 +3,8 @@
 	var scraperjs = require("scraperjs"),
 		_ = require("lodash"),
 		when = require("when"),
-		scrapeRequester = require("./scrapeRequester");
+		scrapeRequester = require("./scrapeRequester"),
+		promiseWhile = require("./promiseWhile").promiseWhile;
 
 	function RegionScraper(rootUrl) {
 		this.rootUrl = rootUrl;
@@ -63,8 +64,7 @@
 					self._appendSubRegions(region, self._getSubRegions($));
 					self._scrapeSubRegions(region).then(resolve);
 				} else {
-					resolve();
-					//self._scrapeRegionForOutlets(region).then(resolve);
+					self._scrapeRegionForOutlets($, region).then(resolve);
 				}
 			});
 		});
@@ -87,37 +87,43 @@
 		});
 	};
 
-	RegionScraper.prototype._scrapeRegionForPages = function ($) {
-		var deferred = when.defer(),
-			$currentPage = $,
-			scrapedPages = [$currentPage];
-
-		promiseWhile(this._hasNextPage($currentPage), function () {
+	RegionScraper.prototype._scrapeRegionForOutlets = function ($, region) {
+		return this._scrapeRegionForPages($, region).then(function () {
+			var i = "test";
 		});
-
-		if (this._hasNextPage($currentPage)) {
-			scrapeRequester.queueRequest(this._getNextPageUrl($currentPage), function ($) {
-
-			});
-		}
-
-		return deferred;
 	};
 
-	RegionScraper.prototype._getNextPage = function ($currentPage) {
+	RegionScraper.prototype._scrapeRegionForPages = function ($, region) {
+		var self = this,
+			$currentPage = $,
+			pageNumber = 1,
+			pages = [$currentPage];
 
+		return promiseWhile(
+			function condition() {
+				return self._hasNextPage($currentPage, region);
+			},
+			function worker(resolve) {
+				pageNumber++;
+				scrapeRequester.queueRequest(self._getPageUrl(region, pageNumber), function ($page) {
+					resolve($page);
+				});
+			},
+			function iteration(result) {
+				$currentPage = result;
+				pages.push($currentPage);
+			},
+			function result() {
+				return pages;
+			});
+	};
+
+	RegionScraper.prototype._getPageUrl = function (region, pageNumber) {
+		return this.rootUrl + region.path + "?page=" + pageNumber;
 	};
 
 	RegionScraper.prototype._hasNextPage = function ($) {
-		return !$("ul.pagination").children("li").last().hasClass("disabled");
-	};
-
-	RegionScraper.prototype._getPageNumber = function ($) {
-		return $("ul.pagination").children("li.active").text();
-	};
-
-	RegionScraper.prototype._getNextPageUrl = function ($) {
-
+		return !($("ul.pagination").children("li").last().hasClass("disabled"));
 	};
 
 	exports.RegionScraper = RegionScraper;
