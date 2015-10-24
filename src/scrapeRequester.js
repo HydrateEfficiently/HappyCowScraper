@@ -1,6 +1,7 @@
 (function () {
 
-	var scraperjs = require("scraperjs");
+	var scraperjs = require("scraperjs"),
+		promiseUtil = require("./promiseWhile");
 
 	var C_MAX_OUTGOING_REQUESTS = 10;
 
@@ -8,8 +9,10 @@
 		outgoingRequestCount = 0;
 
 	function queueRequest(url, callback) {
-		queuedRequests.push({ url: url, callback: callback });
+		var defer = promiseUtil.defer();
+		queuedRequests.push({ url: url, defer: defer });
 		checkShouldService();
+		return defer;
 	}
 
 	function checkShouldService() {
@@ -27,7 +30,7 @@
 			outgoingRequestCount--;
 			checkShouldService();
 			setTimeout(function () {
-				request.callback($);
+				request.defer.resolve($);
 			}, 0);
 		});
 	}

@@ -13,10 +13,15 @@ console.log("Program started");
 	Step 3: Scrape outlet details
 */
 
-var regionScraper = new RegionScraper([
-						//["Australia & Oceania", "/m/australia/"],
-						["New Zealand", "/m/australia/new_zealand/"]
-					]);
+var regionScraper = new RegionScraper({
+	regions: [
+		//["Australia & Oceania", "/m/australia/"],
+		["New Zealand", "/m/australia/new_zealand/"]
+	],
+	collectionName: "RegionScrape-1",
+	overwrite: true
+});
+
 regionScraper.scrape().then(function () {
 	var i = 0;
 });

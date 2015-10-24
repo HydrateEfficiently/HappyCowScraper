@@ -49,6 +49,9 @@
 		};
 	}
 
-	module.exports = promiseWhile;
+	module.exports = {
+		promiseWhile: promiseWhile,
+		defer: defer
+	};
 
 } ());

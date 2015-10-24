@@ -6,33 +6,43 @@
 		ScrapeRequester = require("./../scrapeRequester"),
 		HappyCowUtil = require("./../util/happyCowUtil");
 
-	function RegionScraper(regions) {
-		this.regions = regions;
+	function RegionScraper(options) {
+		this.regions = options.regions;
+		this.collectionName = options.collectionName || "RegionScrape-" + new Date().getTime();
+		this.overwrite = options.overwrite || true;
 	}
 
 	RegionScraper.prototype.scrape = function () {
 		var self = this,
-			collectionName = "RegionScrape-" + new Date().getTime(),
-			regionsJson = _.map(
-				this.regions, 
-				function (region) {
-					return self._getRegionJson(region[0], region[1]);
-				});
+			regions = _.map(this.regions, function (region) { return new Region(region[0], region[1]); });
 
-		return db.createCollection(collectionName)
+		return Promise.resolve(function () {
+				db.getCollection(this.collectionName, this.overwrite);
+			})
 			.then(function (collection) {
 				self._collection = collection;
-				return self._insertRegions(regionsJson);
+				return self._insertRootRegions(regions);
 			})
-			.then(function () {
-				return self._scrapeRootRegions(regionsJson);
+			.then(function (regionsFromDb) {
+				return self._traverseRegions(regionsFromDb);
 			});
+	};
+
+	RegionScraper.prototype._insertRootRegions = function (regions) {
+		var self = this;
+		return Promise.all(Promise.map(regions), function (region) {
+			return collection.findAndModify({
+				query: region.getFindByIdQuery(),
+				upsert: true
+			});
+		});
 	};
 
 	RegionScraper.prototype._scrapeRootRegions = function (regions) {
 		var self = this,
+			regionsToScrape = this._whereRegionNotScraped(regions),
 			scrapeRegionFuncs = _.map(
-				regions,
+				regionsToScrape,
 				function (region) {
 					return self._scrapeRegion(region);
 				});
@@ -40,96 +50,109 @@
 		return Promise.all(scrapeRegionFuncs);
 	};
 
-	RegionScraper.prototype._scrapeRegion = function (region) {
-		var self = this,
-			regionUrl = HappyCowUtil.buildUrl(region.path);
+	RegionScraper.prototype._traverseRegions = function (regions) {
+		var self = this;
+		return Promise.all(
+			Promise.map(regions, function (region) {
+				return self._traverseRegion(region);
+			}));
+	};
 
+	RegionScraper.prototype._traverseRegion = function (region) {
+		var self = this;
 		return new Promise(function (resolve) {
-			ScrapeRequester.queueRequest(regionUrl, function ($) {
-				if (self._regionHasSubRegions($)) {
-					var subRegions = self._getSubRegions($);
-					self._insertSubRegions(region, subRegions)
-						.then(function () {
-							return self._scrapeSubRegions(subRegions);
+			if (region.isScraped) {
+				if (region.isTraversed || !region.isParent) { // TODO: Need isParent?
+					resolve();
+				} else {
+					self._traverseChildRegions(region).then(resolve);
+				}
+			} else {
+				self._scrapeRegion(region).then(function ($) {
+					if (self._regionHasChildRegions($)) {
+						var childRegions = self._parseChildRegions($);
+						Promise.resolve(function () {
+							return self._insertRegionsWithParent(region, childRegions);
 						})
 						.then(function () {
-							return self._markRegionAsCompleted(region);
+							return self._markRegionAsScraped(region);
+						})
+						.then(function () {
+							return self._traverseChildRegions(childRegions);
+						})
+						.then(function () {
+							return self._markRegionAsTraversed(region);
 						})
 						.then(resolve);
-				} else {
-					self._markRegionAsCompleted(region).then(resolve);
-				}
-			});
+					} else {
+						Promise.resolve(function () {
+							return self._markRegionAsScraped(region);
+						})
+						.then(function () {
+							return self._markRegionAsTraversed(region);
+						})
+						.then(resolve);
+					}
+				});
+			}
 		});
 	};
 
-	RegionScraper.prototype._insertSubRegions = function (parentRegion, subRegions) {
+	RegionScraper.prototype._traverseChildRegions = function (region) {
 		var self = this;
-		return this._insertRegions(subRegions)
+		return Promise.resolve(function () {
+				return self._getChildRegions(region);
+			})
+			.then(function (childRegions) {
+				return Promise.resolve(function () {
+						return self._traverseRegions(childRegions);
+					})
+					.then(function () {
+						return self._markRegionAsTraversed(region);
+					});
+			});
+	};
+
+	RegionScraper.prototype._insertRegionsWithParent = function (parentRegion, childRegions) {
+		var self = this;
+		return Promise.resolve(function () {
+				return self._insertRegions(childRegions);
+			})
 			.then(function () {
-				self._collection.update(
-					{ _id: parentRegion._id },
-					{
+				return self._collection.update(
+					parentRegion.getFindByIdQuery(),
+					{ 
 						"$push": {
 							"children": {
 								"$each": _.map(subRegions, function (region) { return region.path; })
 							}
-						},
-						"$set": {
-							"isParent": true
 						}
 					});
-			});
+			});	
 	};
 
 	RegionScraper.prototype._insertRegions = function (regions) {
 		return this._collection.insertMany(regions);
 	};
 
-	RegionScraper.prototype._markRegionAsCompleted = function (region) {
-		return this._collection.update(
-			{ _id: region._id },
-			{ "$set": { scrapeCompleted: true } });
+	RegionScraper.prototype._updateRegionToScraped = function (region) {
+		return this._updateRegion(region, { isScraped: true });
 	};
 
-	RegionScraper.prototype._updateRegion = function (region, values) {
-		return this._collection.update({ path: region.path }, values);
+	RegionScraper.prototype._updateRegionToTraversed = function (region) {
+		return this._updateRegion(region, { isTraversed: true });
 	};
 
-	RegionScraper.prototype._scrapeSubRegions = function (subRegions) {
-		var self = this;
-		return Promise.all(_.map(subRegions, function (subRegion) {
-			return self._scrapeRegion(subRegion);
-		}));
+	RegionScraper.prototype._updateRegion = function (region, update) {
+		return this._collection.update({ _id: parentRegion._id }, { "$set": update });
 	};
 
-	RegionScraper.prototype._regionHasSubRegions = function ($) {
-		return this._getSubRegionElements($).length > 0;
-	};
-
-	RegionScraper.prototype._getSubRegions = function ($) {
-		var self = this;
-		return _.map(this._getSubRegionElements($), function (element) {
-			return self._getRegionJson(
-				$(element).text().trim(),
-				$(element).children("a")[0].attribs.href
-			);
+	RegionScraper.prototype._getChildRegions = function (region) {
+		return this._collection.find({
+			"_id": {
+				"$in": region.children
+			}
 		});
-	};
-
-	RegionScraper.prototype._getSubRegionElements = function ($) {
-		return $("ul.list-group > li.country.list-group-item").toArray();
-	};
-
-	RegionScraper.prototype._getRegionJson = function (name, path) {
-		return {
-			_id: path,
-			path: path,
-			name: name,
-			isParent: false,
-			scrapeCompleted: false,
-			children: []
-		};
 	};
 
 	module.exports = RegionScraper;
