@@ -1,6 +1,6 @@
 (function () {
 
-	var when = require("when");
+	var Promise = require("bluebird");
 
 	/* Example of promiseWhile usage:
 		promiseWhile(
@@ -19,13 +19,13 @@
 	*/
 
 	function promiseWhile(condition, worker, iteration, result) {
-		var deferred = when.defer();
+		var deferred = defer();
 
 		function loop() {
 			if (!condition()) {
 				deferred.resolve(result());
 			} else {
-				when.promise(worker).then(iteration).then(loop);
+				new Promise(worker).then(iteration).then(loop);
 			}
 		}
 
@@ -34,6 +34,21 @@
 		return deferred.promise;
 	}
 
-	exports.promiseWhile = promiseWhile;
+	function defer() {
+		var resolve, reject;
+
+		var promise = new Promise(function() {
+			resolve = arguments[0];
+			reject = arguments[1];
+		});
+
+		return {
+			resolve: resolve,
+			reject: reject,
+			promise: promise
+		};
+	}
+
+	module.exports = promiseWhile;
 
 } ());
