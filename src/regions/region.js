@@ -4,14 +4,13 @@
 		this._id = path;
 		this.path = path;
 		this.name = name;
-		this.isParent = false;
-		this.scrapeCompleted = false;
-		this.traverseCompleted = false;
+		this.isScraped = false;
+		this.isTraversed = false;
 		this.children = [];
 	}
 
-	Region.prototype.getFindByIdQuery = function () {
-		return { _id: this._id };
+	Region.getFindByIdQuery = function (region) {
+		return { _id: region._id };
 	};
 
 	module.exports = Region;

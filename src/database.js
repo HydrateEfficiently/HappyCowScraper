@@ -1,11 +1,8 @@
 (function () {
 
-	var MongoDb = require("mongodb"),
-	Promise = require("bluebird");
-
-	Promise.promisifyAll(require("mongodb"));
-
-	var Db = MongoDb.Db,
+	var Promise = require("bluebird"),
+		MongoDb = Promise.promisifyAll(require("mongodb")),
+		Db = MongoDb.Db,
 		Server = MongoDb.Server;
 
 	var db = new Db('test', new Server('localhost', 27017));

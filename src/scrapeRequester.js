@@ -8,11 +8,11 @@
 	var queuedRequests = [],
 		outgoingRequestCount = 0;
 
-	function queueRequest(url, callback) {
+	function queueRequest(url) {
 		var defer = promiseUtil.defer();
 		queuedRequests.push({ url: url, defer: defer });
 		checkShouldService();
-		return defer;
+		return defer.promise;
 	}
 
 	function checkShouldService() {

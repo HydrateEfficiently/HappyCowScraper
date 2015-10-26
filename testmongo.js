@@ -23,6 +23,12 @@ db.open()
 		collection = result;
 		return collection.insert({ _id: "Parent", children: [], isParent: false });
 	})
+	.then(function () {
+		return collection.insert({ _id: "Parent", children: [], isParent: false });
+	})
+	.catch(function (error) {
+
+	})
 	.then(function (result) {
 		return collection.insertMany(children);
 	})
