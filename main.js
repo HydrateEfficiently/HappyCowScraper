@@ -15,10 +15,9 @@ console.log("Program started");
 
 var regionScraper = new RegionScraper({
 	regions: [
-		//["Australia & Oceania", "/m/australia/"],
-		["New Zealand", "/m/australia/new_zealand/"]
+		["Australia & Oceania", "/m/australia/"]
 	],
-	collectionName: "RegionScrape-4",
+	collectionName: "RegionScrape-1",
 	overwrite: false
 });
 

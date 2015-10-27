@@ -27,20 +27,3 @@
 	module.exports.getCollection = getCollection;
 
 } ());
-
-
-/*
-db.open()
-	.then(function (db) {
-		return db.createCollection("TestCollection");
-	})
-	.then(function (collection) {
-		return collection.insert({
-			name: "Test",
-			value: 5
-		});
-	})
-	.then(function () {
-		console.log("Insert completed");
-	});
-*/

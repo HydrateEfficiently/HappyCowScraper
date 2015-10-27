@@ -11,7 +11,7 @@
 	function RegionScraper(options) {
 		this.regions = options.regions;
 		this.collectionName = options.collectionName || "RegionScrape-" + new Date().getTime();
-		this.overwrite = options.overwrite || true;
+		this.overwrite = options.overwrite === false ? false : true;
 	}
 
 	RegionScraper.prototype.scrape = function () {
@@ -26,20 +26,24 @@
 				return self._insertRootRegions(regions);
 			})
 			.then(function (batchResult) {
-				return self._traverseRegions(_.map(batchResult, function (result) {
-					return result.ops[0];
-				}));
+				return self._traverseRegions(batchResult);
 			});
 	};
 
 	RegionScraper.prototype._insertRootRegions = function (regions) {
 		var self = this;
 		return Promise.map(regions, function (region) {
-			return (
-				self._collection.insertAsync(region)
+			return self._getRegion(region.path)
+				.then(function (result) {
+					if (result) {
+						return result;
+					} else {
+						return self._insertRegion(region);
+					}
+				})
 				.catch(function (e) {
 					var ex = e;
-				}));
+				});
 		});
 	};
 
@@ -51,37 +55,58 @@
 	};
 
 	RegionScraper.prototype._traverseRegion = function (region) {
-		var self = this;
+		var self = this,
+			regionPath = region.path;
+
+		console.log("Started traversal - " + regionPath);
 		return new Promise(function (resolve) {
 			if (region.isScraped) {
-				if (region.isTraversed) { // TODO: Need isParent?
+				if (region.isTraversed) {
+					console.log("Already traversed, skipping - " + regionPath);
 					resolve();
 				} else {
+					console.log("Already scraped, started traversing children - " + regionPath);
 					self._traverseChildRegions(region).then(resolve);
 				}
 			} else {
+				console.log("Started scraping - " + regionPath);
 				ScrapeRequester.queueRequest(HappyCowUtil.buildUrl(region.path)).then(function ($) {
+					console.log("Received web page - " + regionPath);
+
 					if (RegionParser.regionHasSubRegions($)) {
 						var childRegions = RegionParser.getSubRegions($),
 							regionFromDb;
 
-						return (
-							self._insertRegionsWithParent(region, childRegions)
-							.then(self._getRegion.bind(self, region.path))
+						console.log("Region found to have children. Started updating data - " + regionPath);
+						return self._insertRegionsWithParent(region, childRegions)
+							.then(function () {
+								console.log("Inserted child regions - " + regionPath);
+								return self._getRegion(region.path);
+							})
 							.then(function (region) {
 								regionFromDb = region;
 								return self._updateRegionToScraped(regionFromDb);
 							})
 							.then(function () {
+								console.log("Updated region to scraped - " + regionPath);
+								console.log("Started traversing children - " + regionPath);
 								return self._traverseChildRegions(regionFromDb);
 							})
-							.then(resolve));
+							.then(function () {
+								console.log("Finished traversing children - " + regionPath);
+								resolve();
+							});
 					} else {
+						console.log("Region has no children. Started updating data - " + regionPath);
 						self._updateRegionToScraped(region)
 							.then(function () {
+								console.log("Region had no children, isScraped set to true - " + regionPath);
 								return self._updateRegionToTraversed(region);
 							})
-							.then(resolve);
+							.then(function () {
+								console.log("Region had no children, isTraversed set to true - " + regionPath);
+								resolve();
+							});
 					}
 				});
 			}
@@ -115,6 +140,13 @@
 						}
 					});
 			});	
+	};
+
+	RegionScraper.prototype._insertRegion = function (region) {
+		return this._collection.insertAsync(region)
+			.then(function (insertResult) {
+				return insertResult.ops[0];
+			});
 	};
 
 	RegionScraper.prototype._insertRegions = function (regions) {
