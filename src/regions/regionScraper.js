@@ -2,31 +2,36 @@
 
 	var Promise = require("bluebird"),
 		_ = require("lodash"),
-		db = require("./../database"),
+		Constants = require("./../constants"),
+		Database = require("./../database"),
 		Region = require("./region"),
 		RegionParser = require("./regionParser"),
 		ScrapeRequester = require("./../scrapeRequester"),
-		HappyCowUtil = require("./../util/happyCowUtil");
+		HappyCowUtil = require("./../util/happyCowUtil"),
+		PromiseUtil = require("./../util/promiseUtil");
 
 	function RegionScraper(options) {
 		this.regions = options.regions;
-		this.collectionName = options.collectionName || "RegionScrape-" + new Date().getTime();
-		this.overwrite = options.overwrite === false ? false : true;
+		this.collectionName =  Constants.C_REGION_COLLECTION_NAME_PREFIX + options.collectionNameSuffix;
 	}
 
 	RegionScraper.prototype.scrape = function () {
-		var self = this,
-			regions = _.map(this.regions, function (region) { return new Region(region[0], region[1]); });
+		return Database.usingConnection(this._withDatabaseConnection.bind(this));
+	};
 
-		return new Promise(function (resolve) {
-				return resolve(db.getCollection(self.collectionName, self.overwrite));
-			})
+	RegionScraper.prototype._withDatabaseConnection = function (db) {
+		var regions = _.map(this.regions, function (region) { return new Region(region[0], region[1]); });
+		return this._initializeCollection(db, this.collectionName)
+			.then(this._insertRootRegions.bind(this, regions))
+			.then(this._traverseRegions.bind(this));
+	};
+
+	RegionScraper.prototype._initializeCollection = function (db) {
+		var self = this;
+		return Database.getCollection(db, this.collectionName)
 			.then(function (collection) {
 				self._collection = collection;
-				return self._insertRootRegions(regions);
-			})
-			.then(function (batchResult) {
-				return self._traverseRegions(batchResult);
+				return PromiseUtil.identityPromise();
 			});
 	};
 

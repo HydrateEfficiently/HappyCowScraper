@@ -3,27 +3,52 @@
 	var Promise = require("bluebird"),
 		MongoDb = Promise.promisifyAll(require("mongodb")),
 		Db = MongoDb.Db,
-		Server = MongoDb.Server;
+		Server = MongoDb.Server,
+		PromiseUtil = require("./util/promiseUtil");
 
-	var db = new Db('test', new Server('localhost', 27017));
+	function createConnection() {
+		return new Db('test', new Server('localhost', 27017)).openAsync();
+	}
 
-	function getCollection(collectionName, overwrite) {
-		return db.open()
-			.then(function () {
-				return createCollection(db, collectionName);
+	function usingConnection(connectionFunc) {
+		var dbHandle;
+		return createConnection()
+			.then(function (db) {
+				dbHandle = db;
+				return connectionFunc(db);
 			})
-			.then(function (collection) {
-				if (overwrite) {
-					collection.drop();
-				}
-				return createCollection(db, collectionName);
+			.finally(function () {
+				dbHandle.close();
 			});
 	}
 
-	function createCollection(db, collectionName) {
+	function getCollection(db, collectionName) {
 		return db.createCollection(collectionName);
 	}
 
-	module.exports.getCollection = getCollection;
+	function enumerateCollection(db, collectionName, forEachDoc) {
+		var deferred = PromiseUtil.defer();
+
+		getCollection(db, collectionName)
+			.then(function (collection) {
+				var stream = collection.find().stream();
+
+				stream.on("end", function () {
+					deferred.resolve();
+				});
+
+				stream.on("data", function (doc) {
+					forEachDoc(doc);
+				});
+			});
+
+		return deferred.promise;
+	}
+
+	module.exports = {
+		usingConnection: usingConnection,
+		getCollection: getCollection,
+		enumerateCollection: enumerateCollection
+	};
 
 } ());

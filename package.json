@@ -7,7 +7,8 @@
     "lodash": "3.10.0",
     "when": "3.7.3",
     "mongodb": "2.0.46",
-    "bluebird": "2.10.2"
+    "bluebird": "2.10.2",
+    "async": "1.5.0"
   },
   "scripts": {
   }

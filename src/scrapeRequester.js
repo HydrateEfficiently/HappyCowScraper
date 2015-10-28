@@ -1,38 +1,22 @@
 (function () {
 
 	var scraperjs = require("scraperjs"),
-		promiseUtil = require("./promiseWhile");
+		async = require("async"),
+		PromiseUtil = require("./util/promiseUtil");
 
 	var C_MAX_OUTGOING_REQUESTS = 10;
 
-	var queuedRequests = [],
-		outgoingRequestCount = 0;
+	var queue = async.queue(function (task, callback) {
+		scraperjs.StaticScraper.create(task.url).scrape(function ($) {
+			callback();
+			task.deffered.resolve($);
+		});
+	}, C_MAX_OUTGOING_REQUESTS);
 
 	function queueRequest(url) {
-		var defer = promiseUtil.defer();
-		queuedRequests.push({ url: url, defer: defer });
-		checkShouldService();
-		return defer.promise;
-	}
-
-	function checkShouldService() {
-		if (queuedRequests.length > 0 && outgoingRequestCount < 10) {
-			serviceNextRequest();
-		}
-	}
-
-	function serviceNextRequest() {
-		var request = queuedRequests.splice(0, 1)[0];
-		outgoingRequestCount++;
-		console.log("Request started: " + request.url);
-		scraperjs.StaticScraper.create(request.url).scrape(function ($) {
-			console.log("Request finished: " + request.url);
-			outgoingRequestCount--;
-			checkShouldService();
-			setTimeout(function () {
-				request.defer.resolve($);
-			}, 0);
-		});
+		var deffered = PromiseUtil.defer();
+		queue.push({ url: url, deffered: deffered });
+		return deffered.promise;
 	}
 
 	exports.queueRequest = queueRequest;

@@ -49,9 +49,16 @@
 		};
 	}
 
+	function identityPromise() {
+		return new Promise(function (resolve) {
+			resolve();
+		});
+	}
+
 	module.exports = {
 		promiseWhile: promiseWhile,
-		defer: defer
+		defer: defer,
+		identityPromise: identityPromise
 	};
 
 } ());
