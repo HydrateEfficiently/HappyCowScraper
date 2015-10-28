@@ -4,7 +4,8 @@
 		MongoDb = Promise.promisifyAll(require("mongodb")),
 		Db = MongoDb.Db,
 		Server = MongoDb.Server,
-		PromiseUtil = require("./util/promiseUtil");
+		PromiseUtil = require("./util/promiseUtil"),
+		async = require("async");
 
 	function createConnection() {
 		return new Db('test', new Server('localhost', 27017)).openAsync();
@@ -27,23 +28,71 @@
 	}
 
 	function enumerateCollection(db, collectionName, forEachDoc) {
-		var deferred = PromiseUtil.defer();
+		var C_MAX_PARALLEL_TASKS = 10,
+			deffered = PromiseUtil.defer(),
+			queue = async.queue(function (task, callback) {
+				return forEachDoc(task.doc).then(callback);
+			}, C_MAX_PARALLEL_TASKS);
+
+		queue.drain = function () {
+			deffered.resolve();
+		};
 
 		getCollection(db, collectionName)
 			.then(function (collection) {
-				var stream = collection.find().stream();
-
-				stream.on("end", function () {
-					deferred.resolve();
-				});
-
-				stream.on("data", function (doc) {
-					forEachDoc(doc);
+				return collection.findAsync({});
+			})
+			.then(function (result) {
+				result.each(function(err, doc) {
+					if (doc) {
+						queue.push({ doc: doc });
+					}
 				});
 			});
 
-		return deferred.promise;
+		return deffered.promise;
 	}
+
+	// function enumerateCollection(db, collectionName, forEachDoc) {
+	// 	var C_MAX_PARALLEL_TASKS = 10,
+	// 		deffered = PromiseUtil.defer(),
+	// 		queue,
+	// 		cursor;
+
+	// 	function readCursorAndPushTask() {
+	// 		if (!cursor.isClosed() && cursor.hasNext()) {
+	// 			queue.push({});
+	// 		}
+	// 	}
+
+	// 	queue = async.queue(function (task, callback) {
+	// 		if (!cursor.isClosed() && cursor.hasNext()) {
+	// 			cursor.nextObjectAsync()
+	// 				.then(function (doc) {
+	// 					return forEachDoc(doc);
+	// 				})
+	// 				.then(function () {
+	// 					readCursorAndPushTask();
+	// 					callback();
+	// 				});
+	// 		} else {
+	// 			callback();
+	// 		}
+	// 	}, C_MAX_PARALLEL_TASKS);
+
+	// 	queue.drain = function () {
+	// 		deffered.resolve();
+	// 	};
+
+	// 	getCollection(db, collectionName).then(function (collection) {
+	// 		cursor = collection.find({});
+	// 		for (var i = 1; i <= C_MAX_PARALLEL_TASKS; i++) {
+	// 			readCursorAndPushTask();
+	// 		}
+	// 	});
+
+	// 	return deffered.promise;
+	// }
 
 	module.exports = {
 		usingConnection: usingConnection,
