@@ -20,9 +20,9 @@
 	};
 
 	RegionScraper.prototype._withDatabaseConnection = function (db) {
-		var regions = _.map(this.regions, function (region) { return new Region(region[0], region[1]); });
 		return this._initializeCollection(db, this.collectionName)
-			.then(this._insertRootRegions.bind(this, regions))
+			.then(this._insertRootRegion.bind(this))
+			.then(this._insertBaseRegions.bind(this))
 			.then(this._traverseRegions.bind(this));
 	};
 
@@ -35,21 +35,31 @@
 			});
 	};
 
-	RegionScraper.prototype._insertRootRegions = function (regions) {
-		var self = this;
-		return Promise.map(regions, function (region) {
-			return self._getRegion(region.path)
-				.then(function (result) {
-					if (result) {
-						return result;
-					} else {
-						return self._insertRegion(region);
-					}
-				})
-				.catch(function (e) {
-					var ex = e;
+	RegionScraper.prototype._insertRootRegion = function () {
+		var rootRegion = new Region({ path: Constants.C_ROOT_REGION_ID });
+		return this._getRegionOrInsert(rootRegion);
+	};
+
+	RegionScraper.prototype._insertBaseRegions = function (rootRegion) {
+		var self = this,
+
+			regions = _.map(this.regions, function (region) { 
+				return new Region({
+					name: region[0],
+					path: region[1]
 				});
-		});
+			});
+
+		return this._getRegions(regions)
+			.then(function (regionsFromDatabase) {
+				var regionsToInsert = _.filter(regions, function (region) {
+					return _.findIndex(regionsFromDatabase, function (regionFromDatabase) {
+						return regionFromDatabase && regionFromDatabase.path === region.path;
+					}) < 0;
+				});
+				return self._insertRegionsWithParent(rootRegion, regionsToInsert)
+					.then(self._getRegions.bind(self, regions));
+			});
 	};
 
 	RegionScraper.prototype._traverseRegions = function (regions) {
@@ -86,7 +96,7 @@
 						return self._insertRegionsWithParent(region, childRegions)
 							.then(function () {
 								console.log("Inserted child regions - " + regionPath);
-								return self._getRegion(region.path);
+								return self._getRegionById(region.path);
 							})
 							.then(function (region) {
 								regionFromDb = region;
@@ -147,6 +157,18 @@
 			});	
 	};
 
+	RegionScraper.prototype._getRegionOrInsert = function (region) {
+		var self = this;
+		return this._getRegionById(region.path)
+			.then(function (result) {
+				if (result) {
+					return result;
+				} else {
+					return self._insertRegion(region);
+				}
+			});
+	};
+
 	RegionScraper.prototype._insertRegion = function (region) {
 		return this._collection.insertAsync(region)
 			.then(function (insertResult) {
@@ -170,9 +192,16 @@
 		return this._collection.updateAsync(Region.getFindByIdQuery(region), { "$set": update });
 	};
 
-	RegionScraper.prototype._getRegion = function (id) {
+	RegionScraper.prototype._getRegionById = function (id) {
 		return this._collection.findOneAsync({
 			"_id": id
+		});
+	};
+
+	RegionScraper.prototype._getRegions = function (regions) {
+		var self = this;
+		return Promise.map(regions, function (region) {
+			return self._getRegionById(region.path);
 		});
 	};
 

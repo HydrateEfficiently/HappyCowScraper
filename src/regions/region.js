@@ -1,11 +1,15 @@
 (function () {
 
-	function Region(name, path) {
+	function Region(options) {
+		var path = options.path,
+			name = options.name;
+			
 		this._id = path;
 		this.path = path;
 		this.name = name;
 		this.isScraped = false;
 		this.isTraversed = false;
+		this.areOutletsScraped = false;
 		this.children = [];
 	}
 

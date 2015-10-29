@@ -39,10 +39,6 @@
 	};
 
 	OutletScraper.prototype._scrapeRegionForOutlet = function (region) {
-		if (!region) {
-			var i = 0;
-		}
-
 		var self = this,
 			path = region.path;
 

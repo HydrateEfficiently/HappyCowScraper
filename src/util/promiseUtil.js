@@ -50,8 +50,9 @@
 	}
 
 	function identityPromise() {
+		var args = arguments;
 		return new Promise(function (resolve) {
-			resolve();
+			resolve.apply(this, args);
 		});
 	}
 

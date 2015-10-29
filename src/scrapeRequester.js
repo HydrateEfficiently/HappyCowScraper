@@ -10,8 +10,6 @@
 		scraperjs.StaticScraper.create(task.url).scrape(function ($) {
 			callback();
 			task.deffered.resolve($);
-		}).catch(function (error) {
-			var e = error;
 		});
 	}, C_MAX_OUTGOING_REQUESTS);
 

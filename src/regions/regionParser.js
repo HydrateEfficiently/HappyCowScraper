@@ -10,10 +10,10 @@
 	function getSubRegions($) {
 		var self = this;
 		return _.map(getSubRegionElements($), function (element) {
-			return new Region(
-				$(element).text().trim(),
-				$(element).children("a")[0].attribs.href
-			);
+			return new Region({
+				path: $(element).children("a")[0].attribs.href,
+				name: $(element).text().trim()
+			});
 		});
 	}
 

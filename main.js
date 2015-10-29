@@ -4,7 +4,11 @@
 		OutletScraper = require("./src/outlets/outletScraper");
 
 	var C_REGIONS_TO_SEARCH = [
-				["New Zealand", "/m/australia/new_zealand/"]
+				["New Zealand", "/m/australia/new_zealand/"],
+				["Queensland", "/m/australia/queensland/"],
+				["New South Wales", "/m/australia/new_south_wales/"],
+				["Australian Capital Territory", "/m/australia/australian_capital_territory/"]
+
 				//["Australia & Oceania", "/m/australia/"]
 			],
 		C_COLLECTION_NAME_SUFFIX = "-1";
